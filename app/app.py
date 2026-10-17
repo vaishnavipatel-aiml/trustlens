@@ -91,12 +91,46 @@ with tab_detail:
     ax.set_xlabel("SHAP contribution (red = pushes toward anomaly)")
     st.pyplot(fig)
 
-    # Rule-based explanation from precomputed file (fallback if missing)
-    match = exps[exps["claim_id"] == cid]
-    if len(match):
-        st.info(match.iloc[0]["explanation"])
-    else:
-        st.info("Explanation not precomputed for this claim (it's outside the top-50).")
+            # --- NEW LLM EXPLANATION (IMPROVED) ---
+    st.markdown("### 🤖 AI Auditor Explanation")
+    
+    # Check if the key is in Streamlit Secrets (for the public website)
+    try:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except:
+        # If not, ask for it on the screen
+        api_key = st.text_input("Paste your OpenAI API Key here (it starts with sk-):", type="password")
+
+    if st.button("Generate Explanation"):
+        if not api_key:
+            st.warning("Please paste your API key first!")
+        else:
+            with st.spinner("AI is analyzing the claim..."):
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                
+                # Extract top 3 features for the prompt
+                top_feats = top.head(3)
+                feat_text = "\n".join([f"- {r['feature']} = {r['value']:.2f} (Impact: {r['shap']:+.2f})" for _, r in top_feats.iterrows()])
+                
+                prompt = f"""You are an audit assistant. Write ONE concise sentence (max 30 words) explaining why this expense claim is unusual.
+Rules: Never use the word 'fraud'. Use 'unusual' or 'warrants review'. Quantify deviations.
+Claim: Amount ${row['amount']:.2f}, {row['category']}, Dept: {row['department']}, Role: {row['role_level']}, Vendor: {row['vendor']}.
+Top Anomalies:
+{feat_text}
+Output exactly one sentence:"""
+
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=60,
+                        temperature=0.3
+                    )
+                    st.success(response.choices[0].message.content)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+    # ---------------------------
 
     b1, b2 = st.columns(2)
     if b1.button("✅ Mark reviewed — no action"):
@@ -141,4 +175,3 @@ PR-AUC and Recall@top-5% from `src/train.py`.
 
 
 
-    
