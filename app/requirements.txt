@@ -9,3 +9,5 @@ matplotlib
 pyarrow
 joblib
 openai
+transformers
+torch
