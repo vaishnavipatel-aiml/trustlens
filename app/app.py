@@ -91,45 +91,34 @@ with tab_detail:
     ax.set_xlabel("SHAP contribution (red = pushes toward anomaly)")
     st.pyplot(fig)
 
-            # --- NEW LLM EXPLANATION (IMPROVED) ---
-    st.markdown("### 🤖 AI Auditor Explanation")
+               # --- FREE LOCAL LLM EXPLANATION ---
+    st.markdown("### 🤖 AI Auditor Explanation (Local Model)")
     
-    # Check if the key is in Streamlit Secrets (for the public website)
-    try:
-        api_key = st.secrets["OPENAI_API_KEY"]
-    except:
-        # If not, ask for it on the screen
-        api_key = st.text_input("Paste your OpenAI API Key here (it starts with sk-):", type="password")
+    @st.cache_resource
+    def load_local_llm():
+        from transformers import pipeline
+        # This is a small, free Google model that runs on CPU
+        return pipeline("text2text-generation", model="google/flan-t5-base", max_length=60)
 
     if st.button("Generate Explanation"):
-        if not api_key:
-            st.warning("Please paste your API key first!")
-        else:
-            with st.spinner("AI is analyzing the claim..."):
-                from openai import OpenAI
-                client = OpenAI(api_key=api_key)
-                
-                # Extract top 3 features for the prompt
-                top_feats = top.head(3)
-                feat_text = "\n".join([f"- {r['feature']} = {r['value']:.2f} (Impact: {r['shap']:+.2f})" for _, r in top_feats.iterrows()])
-                
-                prompt = f"""You are an audit assistant. Write ONE concise sentence (max 30 words) explaining why this expense claim is unusual.
-Rules: Never use the word 'fraud'. Use 'unusual' or 'warrants review'. Quantify deviations.
-Claim: Amount ${row['amount']:.2f}, {row['category']}, Dept: {row['department']}, Role: {row['role_level']}, Vendor: {row['vendor']}.
-Top Anomalies:
-{feat_text}
-Output exactly one sentence:"""
-
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=60,
-                        temperature=0.3
-                    )
-                    st.success(response.choices[0].message.content)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+        with st.spinner("Local AI is analyzing the claim (this takes ~10 seconds)..."):
+            generator = load_local_llm()
+            
+            # Extract top 3 features for the prompt
+            top_feats = top.head(3)
+            feat_text = "\n".join([f"- {r['feature']} = {r['value']:.2f} (Impact: {r['shap']:+.2f})" for _, r in top_feats.iterrows()])
+            
+            prompt = f"""Explain why this expense is unusual in one sentence. Do not use the word fraud.
+            Amount: ${row['amount']:.2f}, Category: {row['category']}, Department: {row['department']}.
+            Anomalies:
+            {feat_text}"""
+            
+            try:
+                # Generate the text locally
+                result = generator(prompt)[0]['generated_text']
+                st.success(result)
+            except Exception as e:
+                st.error(f"Error: {e}")
     # ---------------------------
 
     b1, b2 = st.columns(2)
