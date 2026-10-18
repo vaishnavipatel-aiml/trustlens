@@ -9,5 +9,5 @@ matplotlib
 pyarrow
 joblib
 openai
-transformers
+transformers==4.40.0
 torch
