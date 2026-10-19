@@ -1,13 +1,1 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.2+cpu
-transformers==4.40.0
-pandas
-numpy
-scikit-learn
-xgboost
-shap
-streamlit
-faker
-matplotlib
-pyarrow
-joblib
+
